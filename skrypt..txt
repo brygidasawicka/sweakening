@@ -1,0 +1,223 @@
+#####################################################
+#  Praat script to measure duration, center of gravity, and voicelessness of /s/
+#  in Guayaquil radio speech corpus
+#
+#  based on(c) 2014 Earl K. Brown www-personal.ksu.edu/~ekbrown
+#  This script can be freely modified and redistributed for non-profit purposes
+#####################################################
+
+# NOTE:
+# Before running this script, you need to make sure the WAV files
+# and their corresponding TextGrid files have the same names, 
+# including capitalization or the lack thereof
+
+#####################################
+# CHANGE THE FOLLOWING LINES AS NEEDED
+
+# defines the folder with the WAV files and the folder with the TextGrid files
+input_sound_folder$ = "C:\korpus\perceptual\Informativo\"
+input_textgrid_folder$ = "C:\korpus\perceptual\Informativo\"
+
+# creates output files in the same folder where this script is saved
+output_file_s$ = "prueba_s.csv"
+
+#####################################
+
+# creates headings for the columns and saves them in the /s/ output file
+headings$ = "NAME	'tab$'GENDER	'tab$'AGE	'tab$'RADIO	'tab$'CAT	'tab$'STYLE	'tab$'PROG	'tab$'DATE	'tab$'HOUR	'tab$'WORD	'tab$'SYLLABLE	'tab$'PERC	'tab$'PREV	'tab$'POST	'tab$'STRING	'tab$'START	'tab$'END	'tab$'DUR	'tab$'COG	'tab$'STDEV	'tab$'SKEWNESS	'tab$'KURTOSIS	'tab$'3RDMOMENT	"
+...+newline$
+headings$ > 'output_file_s$'
+
+
+#####################################
+
+clearinfo
+
+# gets the names of the textgrids and how many there are
+Create Strings as file list...  textgrid_list 'input_textgrid_folder$'*.TextGrid
+num_textgrids = Get number of strings
+
+# sets textgrid counter to zero
+nr_completed = 0
+
+# loop over the textgrid files
+for i to num_textgrids
+
+	# (re)select the textgrid list, as it may have lost focus in the previous iteration
+	select Strings textgrid_list
+
+	# gets the name of the current textgrid file
+	grid_name$ = Get string... i
+
+	# reads the textgrid into the Objects window
+	Read from file... 'input_textgrid_folder$''grid_name$'
+	cur_grid = selected ("TextGrid")
+
+	# gets basename of the current file
+	base_name$ = selected$ ("TextGrid")
+
+	# prints progress report
+	printline Working on 'base_name$'... 
+
+	# puts the "wav" extension in a variable
+	ext1$ = ".wav"
+
+	# creates sound file pathway
+	sound_file_name$ = input_sound_folder$+base_name$+ext1$
+
+	# tests whether the sound file can be read into Praat
+	if fileReadable (sound_file_name$)
+
+		# reads in audio file
+		Open long sound file... 'sound_file_name$'
+		sound_one = selected("LongSound")
+
+		select 'sound_one'
+		plus 'cur_grid'
+		View & Edit
+
+		#############################################
+		
+
+		#############################################
+		# the maintained /s/ tier, tier 3
+		
+		select cur_grid
+		cur_tier_num = 3
+		num_intervals = Get number of intervals... 'cur_tier_num'
+		printline 'tab$'Working on tier 'cur_tier_num', the maintained /s/ tier...
+
+		for j from 1 to 'num_intervals'
+
+			select TextGrid 'base_name$'
+			interval_name$ = Get label of interval... 'cur_tier_num' j
+
+			if interval_name$ = "s"
+			
+				# progress report
+				#printline 'tab$''tab$''interval_name$'
+
+			
+			# word, tier 5
+			s_onset = Get starting point... 'cur_tier_num' 'j'
+			word = Get interval at time: 5, s_onset
+    			word$ = Get label of interval: 5, word
+
+			# syllable, tier 4
+			s_onset = Get starting point... 'cur_tier_num' 'j'
+			syllable = Get interval at time: 4, s_onset
+    			syllable$ = Get label of interval: 4, syllable
+
+			# perception, tier 2
+			s_onset = Get starting point... 'cur_tier_num' 'j'
+			perc = Get interval at time: 2, s_onset
+    			perc$ = Get label of interval: 2, perc
+				
+			# prev and pos interval
+			if j > 2
+				prev_interval$ = Get label of interval: 3, j-1
+			else 
+				prev_interval$ = "NOT"
+		
+			endif
+	
+			if j < 'num_intervals'-1
+				pos_interval$ = Get label of interval: 3, j+1
+			else
+				pos_interval$ = "NOT"
+			endif
+				####################
+				# gets duration of /s/
+
+				s_onset = Get starting point... 'cur_tier_num' 'j'
+				s_offset = Get end point... 'cur_tier_num' 'j'
+				s_dur = 's_offset' - 's_onset'
+
+				####################
+
+ 
+
+				####################
+				# gets center of gravity of middle 60% of /s/ interval
+				
+				
+				tenth_of_s = s_dur/10
+				select LongSound 'base_name$'
+				start_span = 's_onset'+('tenth_of_s'*2)
+				end_span = 's_onset'+('tenth_of_s'*8)
+				Extract part... start_span end_span yes
+				part_name = selected("Sound")
+				select 'part_name'
+				Filter (pass Hann band)... 750 11025 100
+				To Spectrum... Fast
+				spectrum = selected("Spectrum")
+				select 'spectrum'
+
+				cog_mid = Get centre of gravity... 2
+				stdev     = Get standard deviation: 2.0
+      				skewness  = Get skewness: 2.0
+      				kurtosis  = Get kurtosis: 2.0
+      				ctr_mom   = Get central moment: 3.0, 2.0
+
+				####################
+				# creates results string and saves it to the output file
+
+				resultline$ = "'base_name$''tab$''word$''tab$''syllable$''tab$''perc$''tab$''prev_interval$''tab$''pos_interval$''tab$''interval_name$''tab$'
+				...'s_onset''tab$''s_offset''tab$'
+				...'s_dur''tab$''cog_mid''tab$''stdev''tab$''skewness''tab$''kurtosis''tab$''ctr_mom'"
+				...+newline$
+
+				resultline$ >> 'output_file_s$'
+
+				####################
+				# cleans up
+				
+				select all
+				minus 'sound_one'
+				minus 'cur_grid'
+				minus Strings textgrid_list
+				Remove
+				
+			endif # end of if there is /s/ in the interval
+			
+
+
+		endfor # next interval, j loop
+
+			
+		#############################################
+		
+		nr_completed = nr_completed + 1
+
+	else # if the file is not readable
+		
+		# prints an error message if the wav file isn't readable
+		printline *** Error! No sound file 'input_sound_folder$''base_name$''ext1$' found. ***
+	
+		# removes the selected textgrid that doesn't have a matching sound file
+		Remove
+
+	endif # end of if file is readable
+
+	# cleans up
+	select LongSound 'base_name$'
+	plus TextGrid 'base_name$'
+	Remove
+
+endfor # next textgrid, i loop
+
+# removes the textgrid list
+select Strings textgrid_list
+Remove
+
+# announces finish
+printline
+printline Done! 
+printline
+printline 'nr_completed' of 'num_textgrids' TextGrid files processed
+printline
+printline The result files are named: 
+printline "'output_file_s$'" 
+printline
+printline and are in the folder where this script is saved
+printline
